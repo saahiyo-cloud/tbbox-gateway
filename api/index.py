@@ -100,16 +100,38 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
     
     # 4. Fetch share page to extract jsToken
     page_url = f"https://www.terabox.app/sharing/link?surl={surl}"
-    try:
-        r_page = session.get(
-            page_url, 
-            headers=headers, 
-            cookies=cookies, 
-            impersonate="chrome120", 
-            timeout=10
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch TeraBox page: {str(e)}")
+    r_page = None
+    used_ndus = False
+    
+    if cookies:
+        try:
+            r_page = session.get(
+                page_url, 
+                headers=headers, 
+                cookies=cookies, 
+                impersonate="chrome120", 
+                timeout=10
+            )
+            if r_page.status_code == 200 and "need verify" not in r_page.text:
+                used_ndus = True
+            else:
+                print(f"Page fetch with ndus returned status {r_page.status_code if r_page else 'None'} or required verify. Retrying anonymously.")
+        except Exception as e:
+            print(f"Page fetch with ndus failed: {e}. Retrying anonymously.")
+            
+    if r_page is None or r_page.status_code != 200 or "need verify" in r_page.text:
+        try:
+            # Clear cookies and retry anonymously
+            session.cookies.clear()
+            r_page = session.get(
+                page_url, 
+                headers=headers, 
+                cookies={}, 
+                impersonate="chrome120", 
+                timeout=10
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to fetch TeraBox page (anonymous retry): {str(e)}")
         
     if r_page.status_code != 200:
         raise HTTPException(status_code=502, detail=f"TeraBox page returned HTTP {r_page.status_code}")
@@ -121,7 +143,7 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
             detail={
                 "error": "need verify", 
                 "code": "upstream_verification_required",
-                "message": "The proxy IP or ndus cookie has triggered a verification challenge."
+                "message": "TeraBox page requires verification even without cookies."
             }
         )
         
@@ -140,16 +162,31 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
         "Referer": "https://www.terabox.app/"
     }
     
-    try:
-        r_api = session.get(
-            api_url, 
-            headers=api_headers, 
-            cookies=cookies, 
-            impersonate="chrome120", 
-            timeout=10
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to call TeraBox API: {str(e)}")
+    r_api = None
+    if used_ndus:
+        try:
+            r_api = session.get(
+                api_url, 
+                headers=api_headers, 
+                cookies=cookies, 
+                impersonate="chrome120", 
+                timeout=10
+            )
+        except Exception as e:
+            print(f"API fetch with ndus failed: {e}. Retrying anonymously.")
+            
+    if r_api is None or r_api.status_code != 200:
+        try:
+            session.cookies.clear()
+            r_api = session.get(
+                api_url, 
+                headers=api_headers, 
+                cookies={}, 
+                impersonate="chrome120", 
+                timeout=10
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to call TeraBox API (anonymous retry): {str(e)}")
         
     if r_api.status_code != 200:
         raise HTTPException(status_code=502, detail=f"TeraBox API returned HTTP {r_api.status_code}")
@@ -161,6 +198,24 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
         
     # Check if the API output itself returned verification challenge
     if res_json.get("errno") in [4000020, 400141] or "need verify" in str(res_json.get("errmsg", "")):
+        # If API failed with verify, try once more fully anonymous
+        if used_ndus:
+            try:
+                session.cookies.clear()
+                r_api_anon = session.get(
+                    api_url, 
+                    headers=api_headers, 
+                    cookies={}, 
+                    impersonate="chrome120", 
+                    timeout=10
+                )
+                if r_api_anon.status_code == 200:
+                    res_anon_json = r_api_anon.json()
+                    if res_anon_json.get("errno") not in [4000020, 400141]:
+                        return res_anon_json
+            except Exception:
+                pass
+                
         raise HTTPException(
             status_code=403, 
             detail={
