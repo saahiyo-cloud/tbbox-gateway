@@ -102,6 +102,8 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
     page_url = f"https://www.terabox.app/sharing/link?surl={surl}"
     r_page = None
     used_ndus = False
+    ndus_error = None
+    ndus_status = None
     
     if cookies:
         try:
@@ -112,12 +114,15 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
                 impersonate="chrome120", 
                 timeout=10
             )
+            ndus_status = r_page.status_code
             if r_page.status_code == 200 and "need verify" not in r_page.text:
                 used_ndus = True
+            elif r_page.status_code == 200:
+                ndus_error = "need verify in text"
             else:
-                print(f"Page fetch with ndus returned status {r_page.status_code if r_page else 'None'} or required verify. Retrying anonymously.")
+                ndus_error = f"HTTP {r_page.status_code}"
         except Exception as e:
-            print(f"Page fetch with ndus failed: {e}. Retrying anonymously.")
+            ndus_error = str(e)
             
     if r_page is None or r_page.status_code != 200 or "need verify" in r_page.text:
         try:
@@ -228,6 +233,8 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
     # Inject debug resolver metadata to check fallback status
     res_json["debug_resolver"] = {
         "used_ndus": used_ndus,
-        "ndus_length": len(active_ndus) if active_ndus else 0
+        "ndus_length": len(active_ndus) if active_ndus else 0,
+        "ndus_error": ndus_error,
+        "ndus_status": ndus_status
     }
     return res_json
