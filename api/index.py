@@ -1,8 +1,8 @@
 import os
 import re
 from fastapi import FastAPI, Query, HTTPException, Header
-
-app = FastAPI(title="TeraBox Proxy Resolver")
+from fastapi.middleware.cors import CORSMiddleware
+from curl_cffi import requests
 
 # Enable CORS so your Cloudflare Worker or web client can access it directly
 app.add_middleware(
