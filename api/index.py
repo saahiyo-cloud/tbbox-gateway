@@ -31,28 +31,33 @@ def test_proxy():
         "https": proxy_url
     }
     
+    test_url = "https://www.terabox.app/sharing/link?surl=zghhcVThYPRRJ3ciFocryg"
+    
     # Try using curl_cffi
     try:
-        r = requests.get("https://ipv4.webshare.io/", proxies=proxies, timeout=10)
+        r = requests.get(test_url, proxies=proxies, impersonate="chrome120", timeout=10)
         return {
             "success": True,
             "status_code": r.status_code,
-            "ip": r.text.strip(),
+            "html_length": len(r.text),
+            "need_verify": "need verify" in r.text,
             "library": "curl_cffi"
         }
     except Exception as e:
         curl_cffi_err = str(e)
         
-    # Try using standard urllib as a fallback to see if it's a curl_cffi specific issue
+    # Try using standard urllib
     try:
         import urllib.request
         proxy_handler = urllib.request.ProxyHandler(proxies)
         opener = urllib.request.build_opener(proxy_handler)
-        with opener.open("https://ipv4.webshare.io/", timeout=10) as response:
-            ip = response.read().decode('utf-8').strip()
+        req = urllib.request.Request(test_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with opener.open(req, timeout=10) as response:
+            html = response.read().decode('utf-8')
             return {
                 "success": True,
-                "ip": ip,
+                "html_length": len(html),
+                "need_verify": "need verify" in html,
                 "library": "urllib",
                 "curl_cffi_error": curl_cffi_err
             }
