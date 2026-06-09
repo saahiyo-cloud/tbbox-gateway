@@ -22,6 +22,47 @@ DEFAULT_PROXY = "http://tbuombnh:4pd2nzus99xj@38.154.203.95:5863/"
 def read_root():
     return {"status": "ok", "message": "TeraBox Vercel Resolver is running."}
 
+@app.get("/api/test-proxy")
+def test_proxy():
+    import os
+    proxy_url = os.environ.get("PROXY_URL", DEFAULT_PROXY)
+    proxies = {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+    
+    # Try using curl_cffi
+    try:
+        r = requests.get("https://ipv4.webshare.io/", proxies=proxies, timeout=10)
+        return {
+            "success": True,
+            "status_code": r.status_code,
+            "ip": r.text.strip(),
+            "library": "curl_cffi"
+        }
+    except Exception as e:
+        curl_cffi_err = str(e)
+        
+    # Try using standard urllib as a fallback to see if it's a curl_cffi specific issue
+    try:
+        import urllib.request
+        proxy_handler = urllib.request.ProxyHandler(proxies)
+        opener = urllib.request.build_opener(proxy_handler)
+        with opener.open("https://ipv4.webshare.io/", timeout=10) as response:
+            ip = response.read().decode('utf-8').strip()
+            return {
+                "success": True,
+                "ip": ip,
+                "library": "urllib",
+                "curl_cffi_error": curl_cffi_err
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "curl_cffi_error": curl_cffi_err,
+            "urllib_error": str(e)
+        }
+
 @app.get("/api/resolve")
 def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
     # 1. Normalize surl (remove leading '1' if it's 23 characters long)
