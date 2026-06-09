@@ -225,4 +225,9 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
             }
         )
         
+    # Inject debug resolver metadata to check fallback status
+    res_json["debug_resolver"] = {
+        "used_ndus": used_ndus,
+        "ndus_length": len(active_ndus) if active_ndus else 0
+    }
     return res_json
