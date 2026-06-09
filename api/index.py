@@ -1,8 +1,6 @@
 import os
 import re
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from curl_cffi import requests
+from fastapi import FastAPI, Query, HTTPException, Header
 
 app = FastAPI(title="TeraBox Proxy Resolver")
 
@@ -69,7 +67,7 @@ def test_proxy():
         }
 
 @app.get("/api/resolve")
-def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
+def resolve_share(surl: str = Query(...), ndus: str = Query(None), user_agent: str = Header(None)):
     # 1. Normalize surl (remove leading '1' if it's 23 characters long)
     if surl and len(surl) == 23 and surl.startswith("1"):
         surl = surl[1:]
@@ -92,7 +90,7 @@ def resolve_share(surl: str = Query(...), ndus: str = Query(None)):
     session.proxies = proxies
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.terabox.app/"
